@@ -1,0 +1,14 @@
+{
+    "explorer.fileNesting.enabled": true,
+    "search.useParentIgnoreFiles": true,
+    "terminal.integrated.cwd": "/media/tait/Docker/my-files/Projects",
+    "files.autoSaveWhenNoErrors": true,
+    "files.autoSave": "afterDelay",
+    "files.exclude": {
+        "**/.git": false
+    },
+    "terminal.integrated.automationProfile.osx": {
+        
+    },
+    "editor.stickyScroll.defaultModel": "indentationModel"
+}

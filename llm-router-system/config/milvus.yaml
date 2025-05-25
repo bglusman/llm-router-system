@@ -1,0 +1,20 @@
+etcd:
+  endpoints:
+    - etcd:2379
+
+minio:
+  address: minio
+  port: 9000
+  accessKeyID: minioadmin
+  secretAccessKey: minioadmin
+  useSSL: false
+  bucketName: "a-bucket"
+
+common:
+  defaultPartitionName: "_default"
+  defaultIndexName: "_default_idx"
+  entityExpiration: -1
+  indexSliceSize: 16
+
+storage:
+  path: /var/lib/milvus

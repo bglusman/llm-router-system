@@ -1,0 +1,619 @@
+{
+  "duplicate_management": {
+    "content_fingerprinting": {
+      "fingerprint_generation": {
+        "patreon_posts": {
+          "primary_fields": ["post_id", "title", "content_hash"],
+          "secondary_fields": ["author", "timestamp", "tags"],
+          "url_normalization": true,
+          "content_normalization": {
+            "remove_whitespace_variations": true,
+            "normalize_unicode": true,
+            "ignore_engagement_counts": true
+          }
+        },
+        "video_content": {
+          "primary_fields": ["video_id", "title", "transcript_hash"],
+          "secondary_fields": ["duration", "creator", "upload_date"],
+          "youtube_id_extraction": true
+        }
+      },
+      "similarity_detection": {
+        "near_duplicate_threshold": 0.90,
+        "exact_duplicate_threshold": 1.0,
+        "content_chunking": true,
+        "embedding_comparison": true
+      }
+    },
+    "processing_state_management": {
+      "state_tracking": {
+        "database_schema": {
+          "table": "content_processing_status",
+          "fields": [
+            "content_hash",
+            "content_id", 
+            "processing_status",
+            "last_processed",
+            "processing_version",
+            "quality_score",
+            "error_count",
+            "force_reprocess_flag"
+          ]
+        },
+        "status_transitions": {
+          "new -> processing": "automatic",
+          "processing -> completed": "on_success",
+          "processing -> failed": "on_error",
+          "completed -> needs_reprocessing": "on_force_flag",
+          "failed -> processing": "on_retry"
+        }
+      },
+      "reprocessing_logic": {
+        "triggers": [
+          {
+            "name": "force_reprocess_api",
+            "condition": "api_request_with_force_flag",
+            "action": "set_needs_reprocessing_status"
+          },
+          {
+            "name": "config_version_change",
+            "condition": "processing_version < current_config_version",
+            "action": "mark_for_reprocessing"
+          },
+          {
+            "name": "quality_improvement",
+            "condition": "quality_score < quality_threshold AND new_model_available",
+            "action": "mark_for_reprocessing"
+          },
+          {
+            "name": "priority_tag_retroactive",
+            "condition": "contains_newly_added_priority_tags",
+            "action": "mark_for_priority_reprocessing"
+          }
+        ]
+      }
+    }
+  }
+{
+    "content_analysis_pipeline": {
+      "input_processors": [
+        {
+          "name": "url_metadata_extractor",
+          "type": "preprocessing",
+          "config": {
+            "extract_patreon_tags": true,
+            "extract_filter_parameters": true,
+            "detect_creator_info": true,
+            "supported_patterns": [
+              "filters\\[tag\\]=([^&\\s]+)",
+              "patreon\\.com/([^/]+)/posts",
+              "youtube\\.com/(?:watch\\?v=|live/)([^&\\s]+)"
+            ]
+          }
+        },
+        {
+          "name": "content_extractor",
+          "type": "preprocessing", 
+          "config": {
+            "supported_formats": ["text", "pdf", "docx", "xlsx", "images", "video_links"],
+            "max_size_mb": 50,
+            "extract_metadata": true,
+            "image_ocr_enabled": true,
+            "video_link_detection": true
+          }
+        },
+        {
+          "name": "priority_tag_detector",
+          "type": "classification",
+          "model": "local.classification",
+          "config": {
+            "priority_tags": ["bitcoin", "btc", "tesla", "tsla", "solana", "sol", "ethereum", "eth", "megatrends", "sbr"],
+            "url_tag_extraction": true,
+            "visual_tag_extraction": true,
+            "context_keywords": ["strategic bitcoin reserve", "arbitrage", "trading strategy"]
+          }
+        },
+        {
+          "name": "complexity_analyzer",
+          "type": "classification",
+          "model": "local.classification",
+          "config": {
+            "complexity_factors": [
+              "content_length",
+              "technical_terminology_density", 
+              "trading_concept_complexity",
+              "multi_asset_analysis",
+              "numerical_data_presence"
+            ],
+            "priority_tag_bonus": 0.3
+          }
+        },
+        {
+          "name": "video_link_extractor",
+          "type": "url_extraction",
+          "config": {
+            "patterns": [
+              "Live at [^:]*: (https://youtube\\.com/live/[^\\s]+)",
+              "https://(?:www\\.)?youtube\\.com/watch\\?v=([^&\\s]+)",
+              "https://youtu\\.be/([^\\s]+)"
+            ],
+            "extract_metadata": true,
+            "priority_detection": true
+          }
+        }
+      ],
+      "routing_logic": {
+        "decision_tree": [
+          {
+            "condition": "contains_priority_tags(['bitcoin', 'tesla', 'solana']) AND has_images",
+            "action": "route_to_priority_visual_analysis",
+            "priority": "high",
+            "estimated_cost": "medium"
+          },
+          {
+            "condition": "has_video_links AND contains_priority_tags",
+            "action": "route_to_priority_video_pipeline",
+            "priority": "high",
+            "estimated_cost": "high"
+          },
+          {
+            "condition": "content_type == 'image' AND contains_chart_indicators",
+            "action": "route_to_vision_model",
+            "priority": "medium",
+            "estimated_cost": "low"
+          },
+          {
+            "condition": "complexity_score < 0.3 AND content_length < 500 AND NOT contains_priority_tags",
+            "action": "route_to_fast_local_model",
+            "priority": "low",
+            "estimated_cost": "free"
+          },
+          {
+            "condition": "contains_trading_keywords AND complexity_score > 0.7",
+            "action": "route_to_cloud_advanced_model", 
+            "priority": "high",
+            "estimated_cost": "high"
+          },
+          {
+            "condition": "content_length > 5000 OR has_multiple_attachments",
+            "action": "chunk_and_process_parallel",
+            "priority": "medium",
+            "estimated_cost": "medium"
+          },
+          {
+            "condition": "default",
+            "action": "route_to_general_local_model",
+            "priority": "medium",
+            "estimated_cost": "free"
+          }
+        ]
+      },
+      "post_processors": [
+        {
+          "name": "quality_validator",
+          "type": "validation",
+          "config": {
+            "min_quality_score": 0.7,
+            "priority_content_min_score": 0.85,
+            "retry_on_low_quality": true,
+            "upgrade_model_on_failure": true
+          }
+        },
+        {
+          "name": "trading_signal_extractor",
+          "type": "analysis",
+          "model": "cloud.abacus_gpt4o",
+          "condition": "contains_priority_tags OR contains_trading_keywords",
+          "config": {
+            "extract_price_targets": true,
+            "identify_arbitrage_opportunities": true,
+            "sentiment_analysis": true,
+            "risk_assessment": true
+          }
+        },
+        {
+          "name": "result_aggregator",
+          "type": "aggregation",
+          "config": {
+            "combine_multiple_outputs": true,
+            "priority_weight_adjustment": true,
+            "metadata_preservation": true
+          }
+        },
+        {
+          "name": "storage_manager",
+          "type": "storage",
+          "config": {
+            "store_in_vector_db": true,
+            "priority_content_separate_index": true,
+            "include_source_metadata": true,
+            "tag_based_indexing": true
+          }
+        }
+      ]
+    },
+    "video_processing_pipeline": {
+      "priority_video_processing": {
+        "trigger_conditions": [
+          "contains_priority_tags",
+          "url_from_priority_creators",
+          "live_stream_detected",
+          "trading_keywords_in_title"
+        ],
+        "processing_steps": [
+          {
+            "name": "extract_video_metadata",
+            "type": "metadata_extraction",
+            "config": {
+              "extract_title": true,
+              "extract_description": true,
+              "extract_duration": true,
+              "extract_thumbnail": true,
+              "extract_live_status": true
+            }
+          },
+          {
+            "name": "download_transcript",
+            "type": "transcript_extraction",
+            "methods": ["youtube_transcript_api", "whisper_fallback"],
+            "config": {
+              "language_preference": ["en"],
+              "include_timestamps": true,
+              "chunk_size": 1000
+            }
+          },
+          {
+            "name": "analyze_transcript_relevance",
+            "type": "content_analysis", 
+            "model": "cloud.abacus_claude",
+            "config": {
+              "relevance_threshold": 0.8,
+              "priority_keyword_bonus": 0.2,
+              "trading_concept_detection": true,
+              "sentiment_analysis": true
+            }
+          },
+          {
+            "name": "extract_key_insights",
+            "type": "insight_extraction",
+            "model": "cloud.abacus_gpt4o",
+            "condition": "relevance_score > 0.75",
+            "config": {
+              "extract_trading_signals": true,
+              "identify_price_predictions": true,
+              "extract_market_analysis": true,
+              "summarize_key_points": true
+            }
+          },
+          {
+            "name": "generate_video_summary",
+            "type": "summarization",
+            "model": "cloud.abacus_claude",
+            "config": {
+              "max_summary_length": 300,
+              "include_key_quotes": true,
+              "highlight_trading_opportunities": true,
+              "extract_top_keywords": 8
+            }
+          },
+          {
+            "name": "create_dashboard_entry",
+            "type": "dashboard_generation",
+            "config": {
+              "priority_queue": true,
+              "thumbnail_processing": true,
+              "keyword_ranking": true,
+              "relevance_scoring": true
+            }
+          }
+        ]
+      },
+      "standard_video_processing": {
+        "trigger_conditions": [
+          "video_link_detected",
+          "NOT contains_priority_tags"
+        ],
+        "processing_steps": [
+          {
+            "name": "basic_metadata_extraction",
+            "type": "metadata_extraction"
+          },
+          {
+            "name": "quick_relevance_check",
+            "type": "content_analysis",
+            "model": "local.classification",
+            "config": {
+              "relevance_threshold": 0.6,
+              "quick_scan": true
+            }
+          },
+          {
+            "name": "queue_for_later_processing",
+            "type": "queue_management",
+            "condition": "relevance_score > 0.6",
+            "config": {
+              "priority": "low",
+              "processing_delay": "1hour"
+            }
+          }
+        ]
+      }
+    },
+    "auto_routing_rules": {
+      "performance_based": {
+        "monitor_response_times": true,
+        "adjust_routing_on_performance": true,
+        "performance_thresholds": {
+          "local_model_max_latency": 30000,
+          "cloud_model_max_latency": 15000,
+          "priority_content_max_latency": 10000
+        },
+        "fallback_strategies": [
+          "local_to_cloud_on_failure",
+          "cloud_to_local_on_cost_limit", 
+          "parallel_processing_on_high_load",
+          "priority_queue_bypass_on_emergency"
+        ]
+      },
+      "cost_based": {
+        "daily_cost_limit": 50.0,
+        "priority_content_cost_limit": 35.0,
+        "cost_per_request_threshold": 2.0,
+        "prefer_local_when_possible": true,
+        "emergency_local_only_mode": true,
+        "cost_optimization_strategies": [
+          "batch_similar_requests",
+          "cache_common_analyses",
+          "use_cheaper_models_for_validation",
+          "prioritize_high_value_content"
+        ]
+      },
+      "quality_based": {
+        "min_acceptable_quality": 0.7,
+        "priority_content_min_quality": 0.85,
+        "upgrade_to_cloud_on_low_quality": true,
+        "quality_feedback_learning": true,
+        "retry_strategies": [
+          "different_model_on_failure",
+          "parameter_adjustment_on_low_quality",
+          "human_review_queue_for_critical_content"
+        ]
+      }
+    }
+  },
+  "workflow_orchestration": {
+    "scraping_workflows": {
+      "patreon_priority_monitor": {
+        "schedule": "*/3 * * * *",
+        "description": "High-frequency monitoring for priority tagged content",
+        "target_urls": [
+          "https://www.patreon.com/InvestAnswers/posts?filters[tag]=Bitcoin",
+          "https://www.patreon.com/InvestAnswers/posts?filters[tag]=Tesla", 
+          "https://www.patreon.com/InvestAnswers/posts?filters[tag]=Solana"
+        ],
+        "steps": [
+          "extract_new_priority_content",
+          "classify_content_urgency",
+          "route_for_immediate_processing",
+          "extract_trading_insights",
+          "update_priority_dashboard",
+          "trigger_alerts_if_needed"
+        ]
+      },
+      "patreon_standard_monitor": {
+        "schedule": "*/10 * * * *",
+        "description": "Standard monitoring for general content",
+        "steps": [
+          "extract_new_content",
+          "classify_content_type",
+          "route_for_processing",
+          "extract_insights",
+          "store_results",
+          "update_dashboard"
+        ]
+      },
+      "video_processing_queue": {
+        "schedule": "*/5 * * * *",
+        "description": "Process queued videos based on priority",
+        "steps": [
+          "check_priority_video_queue",
+          "process_next_priority_video",
+          "check_standard_video_queue",
+          "process_standard_videos_batch",
+          "update_video_dashboard",
+          "cleanup_completed_videos"
+        ]
+      },
+      "deep_analysis": {
+        "schedule": "0 2 * * *",
+        "description": "Daily comprehensive analysis of priority content",
+        "steps": [
+          "retrieve_priority_content_24h",
+          "batch_process_with_advanced_models",
+          "generate_comprehensive_reports",
+          "identify_trends_and_patterns",
+          "update_trading_signals_dashboard",
+          "generate_daily_summary_report"
+        ]
+      }
+    },
+    "dynamic_workflows": {
+      "user_triggered": {
+        "priority_search_and_analyze": {
+          "description": "Immediate analysis for priority queries",
+          "steps": [
+            "parse_user_query_for_priority_tags",
+            "determine_search_strategy",
+            "execute_semantic_search_with_priority_weighting",
+            "route_results_for_premium_analysis",
+            "synthesize_final_response_with_trading_focus"
+          ]
+        },
+        "video_analysis_request": {
+          "description": "On-demand video analysis",
+          "steps": [
+            "validate_video_url",
+            "extract_video_metadata",
+            "download_and_analyze_transcript",
+            "extract_trading_insights",
+            "generate_comprehensive_summary",
+            "add_to_priority_dashboard_if_relevant"
+          ]
+        }
+      },
+      "automated_discovery": {
+        "trading_opportunity_detection": {
+          "trigger": "priority_content_analyzed",
+          "steps": [
+            "scan_recent_priority_content",
+            "filter_for_trading_signals",
+            "route_to_advanced_analysis",
+            "validate_opportunities_with_market_data",
+            "generate_actionable_insights",
+            "alert_if_high_confidence_opportunities"
+          ]
+        },
+        "trend_monitoring": {
+          "trigger": "batch_analysis_completed",
+          "steps": [
+            "aggregate_analysis_results",
+            "identify_emerging_trends",
+            "correlate_with_priority_tags",
+            "generate_trend_reports",
+            "update_priority_monitoring_parameters"
+          ]
+        }
+      }
+    },
+    "dashboard_workflows": {
+      "video_dashboard_generation": {
+        "schedule": "*/2 * * * *",
+        "description": "Real-time video dashboard updates",
+        "steps": [
+          "aggregate_processed_videos",
+          "sort_by_priority_and_relevance",
+          "generate_or_update_thumbnails",
+          "extract_and_rank_keywords",
+          "calculate_relevance_scores",
+          "update_dashboard_metadata",
+          "cleanup_old_entries"
+        ]
+      },
+      "priority_content_dashboard": {
+        "schedule": "*/1 * * * *",
+        "description": "Live dashboard for priority tagged content",
+        "steps": [
+          "aggregate_priority_content",
+          "calculate_trending_scores",
+          "extract_latest_trading_signals",
+          "update_alert_statuses",
+          "generate_real_time_metrics"
+        ]
+      }
+    }
+  },
+  "dashboard_generation": {
+    "video_processing_dashboard": {
+      "data_sources": ["processed_videos", "video_queue", "analysis_results", "priority_metrics"],
+      "metadata_fields": [
+        {
+          "field": "title",
+          "source": "video_metadata",
+          "display_name": "Video Title",
+          "max_length": 100
+        },
+        {
+          "field": "creator",
+          "source": "video_metadata",
+          "display_name": "Creator",
+          "default": "InvestAnswers"
+        },
+        {
+          "field": "created_date",
+          "source": "video_metadata",
+          "format": "YYYY-MM-DD HH:mm",
+          "display_name": "Date Created"
+        },
+        {
+          "field": "duration",
+          "source": "video_metadata",
+          "format": "duration",
+          "display_name": "Duration"
+        },
+        {
+          "field": "summary",
+          "source": "llm_analysis",
+          "max_length": 250,
+          "display_name": "Content Summary"
+        },
+        {
+          "field": "trading_insights",
+          "source": "llm_analysis",
+          "max_length": 200,
+          "display_name": "Trading Insights"
+        },
+        {
+          "field": "top_keywords",
+          "source": "keyword_extraction", 
+          "count": 8,
+          "sort": "frequency_desc",
+          "display_name": "Key Concepts"
+        },
+        {
+          "field": "priority_tags",
+          "source": "tag_analysis",
+          "display_name": "Priority Tags",
+          "highlight": true
+        },
+        {
+          "field": "thumbnail_url",
+          "source": "video_metadata",
+          "display_name": "Thumbnail"
+        },
+        {
+          "field": "relevance_score",
+          "source": "analysis_results",
+          "format": "percentage",
+          "display_name": "Relevance"
+        },
+        {
+          "field": "processing_status",
+          "source": "queue_management",
+          "display_name": "Status"
+        }
+      ],
+      "sorting": {
+        "primary": "priority_score",
+        "secondary": "relevance_score", 
+        "tertiary": "created_date",
+        "order": "desc"
+      },
+      "filtering": {
+        "available_filters": [
+          "priority_tags",
+          "date_range",
+          "content_type",
+          "analysis_status",
+          "relevance_threshold",
+          "creator"
+        ],
+        "default_filter": "relevance_score > 0.7 OR contains_priority_tags"
+      },
+      "real_time_updates": {
+        "enabled": true,
+        "update_interval": "30s",
+        "push_notifications": true
+      }
+    },
+    "priority_content_dashboard": {
+      "data_sources": ["priority_tagged_content", "trading_signals", "trend_analysis"],
+      "update_frequency": "real_time",
+      "alert_conditions": [
+        "new_priority_content_detected",
+        "high_confidence_trading_signal",
+        "unusual_activity_in_priority_tags",
+        "breaking_news_detected"
+      ]
+    }
+  }
+}

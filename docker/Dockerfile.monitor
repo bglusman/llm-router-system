@@ -1,0 +1,25 @@
+# docker/Dockerfile.monitor
+FROM node:18-alpine
+
+RUN apk add --no-cache curl
+
+WORKDIR /app
+
+COPY package*.json ./
+
+# Handle missing package-lock.json gracefully
+RUN if [ -f package-lock.json ]; then \
+      npm ci --only=production; \
+    else \
+      npm install --only=production; \
+    fi
+
+COPY scripts/ ./scripts/
+COPY utils/ ./utils/
+COPY config/ ./config/
+
+RUN mkdir -p /app/logs
+
+EXPOSE 3001
+
+CMD ["node", "scripts/performance-monitor.js"]

@@ -1,0 +1,182 @@
+version: '3.8'
+
+services:
+  # Ollama for local LLM hosting
+  ollama:
+    image: ollama/ollama:latest
+    container_name: llm-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./volumes/ollama:/root/.ollama
+      - ./models/local:/models
+    environment:
+      - OLLAMA_MODELS=/models
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_MAX_LOADED_MODELS=3
+      - OLLAMA_MAX_QUEUE=512
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Milvus Vector Database
+  etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.5
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - ./volumes/etcd:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio:
+    container_name: milvus-minio
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    volumes:
+      - ./volumes/minio:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus:
+    container_name: milvus-standalone
+    image: milvusdb/milvus:v2.4.0
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - ./volumes/milvus:/var/lib/milvus
+      - ./config/milvus.yaml:/milvus/configs/milvus.yaml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - "etcd"
+      - "minio"
+
+  # LLM Router Controller
+  llm-router:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.router
+    container_name: llm-router-controller
+    ports:
+      - "8080:8080"
+    environment:
+      - OLLAMA_HOST=ollama
+      - OLLAMA_PORT=11434
+      - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
+      - ABACUS_API_KEY=${ABACUS_API_KEY}
+      - ABACUS_BASE_URL=${ABACUS_BASE_URL:-https://api.abacus.ai/v1}
+      - ROUTER_MODE=intelligent
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./workflows:/app/workflows
+      - ./models:/app/models
+    depends_on:
+      ollama:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Workflow Orchestrator
+  workflow-engine:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.workflow
+    container_name: workflow-orchestrator
+    environment:
+      - LLM_ROUTER_HOST=llm-router
+      - LLM_ROUTER_PORT=8080
+      - PATREON_USERNAME=${PATREON_USERNAME}
+      - PATREON_PASSWORD=${PATREON_PASSWORD}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./workflows:/app/workflows
+    depends_on:
+      - llm-router
+    restart: unless-stopped
+
+  # Performance Monitor
+  monitor:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.monitor
+    container_name: performance-monitor
+    ports:
+      - "3001:3001"
+    environment:
+      - ROUTER_HOST=llm-router
+      - OLLAMA_HOST=ollama
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+    depends_on:
+      - llm-router
+    restart: unless-stopped
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - ROUTER_HOST=llm-router
+      - WORKFLOW_HOST=workflow-engine
+      - API_KEY=${API_KEY:-your-secret-api-key}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config
+    depends_on:
+      - llm-router
+      - workflow-engine
+    restart: unless-stopped
+
+networks:
+  default:
+    name: llm-router-network

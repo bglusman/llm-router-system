@@ -1,0 +1,176 @@
+{
+  "routing_strategy": "intelligent_hybrid",
+  "local_models": {
+    "classification": {
+      "model": "llama3.2:3b",
+      "max_tokens": 100,
+      "temperature": 0.1,
+      "use_cases": ["content_classification", "quick_analysis", "filtering"]
+    },
+    "general_processing": {
+      "model": "llama3.1:8b", 
+      "max_tokens": 1000,
+      "temperature": 0.7,
+      "use_cases": ["general_analysis", "content_processing", "basic_reasoning"]
+    },
+    "vision_analysis": {
+      "model": "llama3.2-vision:11b",
+      "max_tokens": 500,
+      "temperature": 0.5,
+      "use_cases": ["image_analysis", "document_ocr", "visual_content"]
+    },
+    "document_processing": {
+      "model": "deepseek-coder:6.7b",
+      "max_tokens": 2000,
+      "temperature": 0.3,
+      "use_cases": ["document_analysis", "code_analysis", "structured_data"]
+    },
+    "complex_reasoning": {
+      "model": "llama3.1:70b",
+      "max_tokens": 2000,
+      "temperature": 0.4,
+      "use_cases": ["complex_analysis", "multi_step_reasoning", "advanced_logic"]
+    }
+  },
+  "cloud_models": {
+    "abacus_gpt4o": {
+      "model": "gpt-4o",
+      "provider": "abacus",
+      "max_tokens": 4000,
+      "temperature": 0.7,
+      "cost_per_1k_input": 0.005,
+      "cost_per_1k_output": 0.015,
+      "use_cases": ["complex_trading_analysis", "multi_document_synthesis", "advanced_reasoning"]
+    },
+    "abacus_claude": {
+      "model": "claude-3-sonnet-20240229",
+      "provider": "abacus", 
+      "max_tokens": 4000,
+      "temperature": 0.5,
+      "cost_per_1k_input": 0.003,
+      "cost_per_1k_output": 0.015,
+      "use_cases": ["long_document_analysis", "detailed_summarization", "research_synthesis"]
+    },
+    "abacus_claude_haiku": {
+      "model": "claude-3-haiku-20240307",
+      "provider": "abacus",
+      "max_tokens": 1000,
+      "temperature": 0.3,
+      "cost_per_1k_input": 0.00025,
+      "cost_per_1k_output": 0.00125,
+      "use_cases": ["fast_classification", "quick_summaries", "cost_effective_processing"]
+    }
+  },
+  "routing_rules": {
+    "content_type_routing": {
+      "text_short": {
+        "condition": "length < 500 AND complexity_score < 0.3",
+        "route_to": "local",
+        "model": "classification"
+      },
+      "text_medium": {
+        "condition": "length >= 500 AND length < 2000 AND complexity_score < 0.6",
+        "route_to": "local", 
+        "model": "general_processing"
+      },
+      "text_long": {
+        "condition": "length >= 2000 OR complexity_score >= 0.6",
+        "route_to": "local",
+        "model": "complex_reasoning",
+        "fallback_to_cloud": true,
+        "fallback_condition": "processing_time > 30s OR quality_score < 0.7"
+      },
+      "images": {
+        "condition": "content_type == 'image'",
+        "route_to": "local",
+        "model": "vision_analysis"
+      },
+      "documents": {
+        "condition": "content_type == 'document'",
+        "route_to": "local",
+        "model": "document_processing"
+      },
+      "trading_analysis": {
+        "condition": "contains_keywords(['trading', 'arbitrage', 'financial', 'stock', 'options']) AND complexity_score > 0.7",
+        "route_to": "cloud",
+        "model": "abacus_gpt4o"
+      },
+      "bulk_processing": {
+        "condition": "batch_size > 10",
+        "route_to": "local",
+        "model": "classification",
+        "parallel_processing": true
+      }
+    },
+    "performance_routing": {
+      "high_priority": {
+        "condition": "priority == 'high' OR user_tier == 'premium'",
+        "prefer_cloud": true,
+        "max_wait_time": 5
+      },
+      "cost_optimization": {
+        "condition": "cost_mode == 'optimize'",
+        "prefer_local": true,
+        "cloud_threshold": 0.8
+      },
+      "quality_optimization": {
+        "condition": "quality_mode == 'high'",
+        "prefer_cloud": true,
+        "min_quality_score": 0.9
+      }
+    }
+  },
+  "workflow_templates": {
+    "patreon_content_analysis": {
+      "steps": [
+        {
+          "name": "content_classification",
+          "model": "local.classification",
+          "input": "raw_content",
+          "output": "content_category"
+        },
+        {
+          "name": "routing_decision", 
+          "type": "decision",
+          "condition": "content_category.complexity > 0.6",
+          "true_path": "complex_analysis",
+          "false_path": "simple_analysis"
+        },
+        {
+          "name": "simple_analysis",
+          "model": "local.general_processing",
+          "input": "raw_content",
+          "output": "basic_insights"
+        },
+        {
+          "name": "complex_analysis",
+          "model": "cloud.abacus_gpt4o",
+          "input": "raw_content",
+          "output": "detailed_insights",
+          "fallback": "local.complex_reasoning"
+        },
+        {
+          "name": "trading_signal_extraction",
+          "condition": "content_category.contains_trading_keywords",
+          "model": "cloud.abacus_gpt4o",
+          "input": "detailed_insights",
+          "output": "trading_signals"
+        }
+      ]
+    }
+  },
+  "monitoring": {
+    "performance_metrics": ["latency", "throughput", "cost", "quality_score"],
+    "alerts": {
+      "high_latency": 30,
+      "high_cost": 10.0,
+      "low_quality": 0.6,
+      "model_failure": true
+    },
+    "optimization": {
+      "auto_route_adjustment": true,
+      "learning_enabled": true,
+      "cost_tracking": true
+    }
+  }
+}

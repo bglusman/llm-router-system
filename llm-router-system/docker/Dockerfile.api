@@ -1,0 +1,21 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN if [ -f package-lock.json ]; then \
+      npm ci --omit=dev; \
+    else \
+      npm install --omit=dev; \
+    fi
+
+COPY api/ ./api/
+COPY utils/ ./utils/
+COPY config/ ./config/
+
+RUN mkdir -p /app/data /app/logs
+
+EXPOSE 3000
+
+CMD ["node", "api/gateway.js"]

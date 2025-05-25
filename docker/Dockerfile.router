@@ -1,0 +1,27 @@
+FROM node:18-alpine
+
+RUN apk add --no-cache curl python3 py3-pip
+
+WORKDIR /app
+
+COPY package*.json ./
+
+# Use modern npm syntax
+RUN if [ -f package-lock.json ]; then \
+      npm ci --omit=dev; \
+    else \
+      npm install --omit=dev; \
+    fi
+
+COPY scripts/ ./scripts/
+COPY utils/ ./utils/
+COPY config/ ./config/
+
+RUN mkdir -p /app/data /app/logs /app/workflows /app/models
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+CMD ["node", "scripts/router-controller.js"]

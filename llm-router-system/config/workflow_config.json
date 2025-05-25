@@ -1,0 +1,142 @@
+{
+  "business_logic": {
+    "content_analysis_pipeline": {
+      "input_processors": [
+        {
+          "name": "content_extractor",
+          "type": "preprocessing",
+          "config": {
+            "supported_formats": ["text", "pdf", "docx", "xlsx", "images"],
+            "max_size_mb": 50,
+            "extract_metadata": true
+          }
+        },
+        {
+          "name": "complexity_analyzer",
+          "type": "classification",
+          "model": "local.classification",
+          "output": "complexity_score"
+        },
+        {
+          "name": "content_categorizer", 
+          "type": "classification",
+          "model": "local.classification",
+          "categories": [
+            "trading_content",
+            "general_content", 
+            "technical_content",
+            "news_content",
+            "multimedia_content"
+          ]
+        }
+      ],
+      "routing_logic": {
+        "decision_tree": [
+          {
+            "condition": "content_type == 'image'",
+            "action": "route_to_vision_model"
+          },
+          {
+            "condition": "complexity_score < 0.3 AND content_length < 500",
+            "action": "route_to_fast_local_model"
+          },
+          {
+            "condition": "contains_trading_keywords AND complexity_score > 0.7",
+            "action": "route_to_cloud_advanced_model"
+          },
+          {
+            "condition": "content_length > 5000",
+            "action": "chunk_and_process_parallel"
+          },
+          {
+            "condition": "default",
+            "action": "route_to_general_local_model"
+          }
+        ]
+      },
+      "post_processors": [
+        {
+          "name": "quality_validator",
+          "type": "validation",
+          "min_quality_score": 0.7
+        },
+        {
+          "name": "result_aggregator",
+          "type": "aggregation",
+          "combine_multiple_outputs": true
+        },
+        {
+          "name": "storage_manager",
+          "type": "storage",
+          "store_in_vector_db": true
+        }
+      ]
+    },
+    "auto_routing_rules": {
+      "performance_based": {
+        "monitor_response_times": true,
+        "adjust_routing_on_performance": true,
+        "fallback_strategies": [
+          "local_to_cloud_on_failure",
+          "cloud_to_local_on_cost_limit",
+          "parallel_processing_on_high_load"
+        ]
+      },
+      "cost_based": {
+        "daily_cost_limit": 50.0,
+        "cost_per_request_threshold": 0.10,
+        "prefer_local_when_possible": true,
+        "emergency_local_only_mode": true
+      },
+      "quality_based": {
+        "min_acceptable_quality": 0.7,
+        "upgrade_to_cloud_on_low_quality": true,
+        "quality_feedback_learning": true
+      }
+    }
+  },
+  "workflow_orchestration": {
+    "scraping_workflows": {
+      "patreon_monitor": {
+        "schedule": "*/5 * * * *",
+        "steps": [
+          "extract_new_content",
+          "classify_content_type", 
+          "route_for_processing",
+          "extract_insights",
+          "store_results",
+          "trigger_alerts_if_needed"
+        ]
+      },
+      "deep_analysis": {
+        "schedule": "0 2 * * *",
+        "steps": [
+          "retrieve_recent_content",
+          "batch_process_with_advanced_models",
+          "generate_comprehensive_reports",
+          "identify_trends_and_patterns"
+        ]
+      }
+    },
+    "dynamic_workflows": {
+      "user_triggered": {
+        "search_and_analyze": [
+          "parse_user_query",
+          "determine_search_strategy", 
+          "execute_semantic_search",
+          "route_results_for_analysis",
+          "synthesize_final_response"
+        ]
+      },
+      "automated_discovery": {
+        "trading_opportunity_detection": [
+          "scan_recent_content",
+          "filter_for_trading_signals",
+          "route_to_advanced_analysis",
+          "validate_opportunities",
+          "generate_actionable_insights"
+        ]
+      }
+    }
+  }
+}

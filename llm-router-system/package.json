@@ -1,0 +1,39 @@
+{
+  "name": "intelligent-llm-router-system",
+  "version": "1.0.0",
+  "description": "Intelligent multi-LLM routing system with automatic workflow orchestration",
+  "main": "scripts/router-controller.js",
+  "scripts": {
+    "start": "node scripts/router-controller.js",
+    "workflow": "node scripts/workflow-engine.js",
+    "monitor": "node scripts/performance-monitor.js",
+    "api": "node api/gateway.js",
+    "test": "node scripts/test-system.js",
+    "setup-models": "node scripts/setup-local-models.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0",
+    "node-cron": "^3.0.3",
+    "uuid": "^9.0.1",
+    "@zilliz/milvus2-sdk-node": "^2.4.10",
+    "playwright": "^1.41.0",
+    "sharp": "^0.33.0",
+    "pdf-parse": "^1.1.1",
+    "mammoth": "^1.6.0",
+    "xlsx": "^0.18.5",
+    "cheerio": "^1.0.0-rc.12",
+    "multer": "^1.4.5-lts.1",
+    "ws": "^8.14.2",
+    "ioredis": "^5.3.2",
+    "bull": "^4.12.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0"
+  }
+}
